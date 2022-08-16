@@ -13,6 +13,6 @@ REGION = os.getenv('CDK_DEFAULT_REGION', 'us-east-1')
 AWS_ENV = cdk.Environment(account=ACCOUNT, region=REGION)
 
 app = cdk.App()
-DataAnalyticsSystemStack(app, "data-analytics-system", env=AWS_ENV)
+DataAnalyticsSystemStack(app, "ad-data-system", env=AWS_ENV)
 
 app.synth()
