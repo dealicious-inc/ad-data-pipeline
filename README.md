@@ -57,7 +57,8 @@ CDK로 배포할 경우, 아래 아키텍처 그림의 1(a), 1(b), 1(c), 1(f), 2
 ![aws-analytics-system-build-steps](./assets/aws-analytics-system-build-steps.svg)
 
 :white_check_mark: 아래 설명은 `sandbox` 계정 기준으로 되어 있습니다. 다른 계정에 배포할 때는 
-`--profile {profile_name}` 을 수정하여 적용하면 됩니다. 
+`--profile {profile_name}` 을 수정하여 적용하면 됩니다. 또한 deploy 할 환경을 dev, qa, prod 중에 같이 선택하여 `-c deploy_env={env}` 와 같이
+넣어주어야 합니다. 
 
 1. [Getting Started With the AWS CDK](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html)를 참고해서 cdk를 설치하고,
 aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 등록합니다.
@@ -91,19 +92,19 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     (.env) $ pip install -r requirements.txt
     (.env) $ cdk bootstrap --profile deali-sandbox
     (.env) $ export S3_BUCKET_LAMBDA_LAYER_LIB=deali-ad-data-lambda-layer-packages
-    (.env) $ cdk --profile deali-sandbox deploy
+    (.env) $ cdk --profile deali-sandbox deploy -c deploy_env=dev
     ```
 
    :white_check_mark: `cdk bootstrap ...` 명령어는 CDK toolkit stack 배포를 위해 최초 한번만 실행 하고, 이후에 배포할 때는 CDK toolkit stack 배포 없이 `cdk deploy` 명령어만 수행하면 됩니다.
 
     ```shell script
     (.env) $ export S3_BUCKET_LAMBDA_LAYER_LIB=deali-ad-data-lambda-layer-packages
-    (.env) $ cdk --profile deali-sandbox deploy
+    (.env) $ cdk --profile deali-sandbox deploy -c deploy_env=dev
     ```
 
 4. 배포한 애플리케이션을 삭제하려면, `cdk destroy` 명령어를 아래와 같이 실행 합니다.
     ```shell script
-    (.env) $ cdk --profile deali-sandbox destroy
+    (.env) $ cdk --profile deali-sandbox destroy -c deploy_env=dev
     ```
 
 \[[Top](#top)\]
