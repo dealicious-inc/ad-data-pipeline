@@ -90,21 +90,22 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     $ python3 -m venv .env
     $ source .env/bin/activate
     (.env) $ pip install -r requirements.txt
-    (.env) $ cdk bootstrap --profile deali-sandbox
-    (.env) $ export S3_BUCKET_LAMBDA_LAYER_LIB=deali-ad-data-lambda-layer-packages
-    (.env) $ cdk --profile deali-sandbox deploy -c deploy_env=dev
+    (.env) $ cdk bootstrap -c deploy_env=dev --profile deali-sandbox
+    (.env) $ export S3_BUCKET_LAMBDA_LAYER_LIB=deali-ad-data-lambda-layer-packages       # 저장 위치가 deali-ad-data-lambda-layer-packages 라면 생략가능
+    (.env) $ cdk synth --profile deali-sandbox -c deploy_env=dev                         # 생략 가능
+    (.env) $ cdk deploy --profile deali-sandbox -c deploy_env=dev
     ```
 
    :white_check_mark: `cdk bootstrap ...` 명령어는 CDK toolkit stack 배포를 위해 최초 한번만 실행 하고, 이후에 배포할 때는 CDK toolkit stack 배포 없이 `cdk deploy` 명령어만 수행하면 됩니다.
 
     ```shell script
     (.env) $ export S3_BUCKET_LAMBDA_LAYER_LIB=deali-ad-data-lambda-layer-packages
-    (.env) $ cdk --profile deali-sandbox deploy -c deploy_env=dev
+    (.env) $ cdk deploy --profile deali-sandbox -c deploy_env=dev
     ```
 
 4. 배포한 애플리케이션을 삭제하려면, `cdk destroy` 명령어를 아래와 같이 실행 합니다.
     ```shell script
-    (.env) $ cdk --profile deali-sandbox destroy -c deploy_env=dev
+    (.env) $ cdk destroy --profile deali-sandbox -c deploy_env=dev
     ```
 
 \[[Top](#top)\]
