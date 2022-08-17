@@ -85,8 +85,8 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
 설정 한 후, `cdk deploy` 명령어를 이용해서 배포합니다.
 
     ```shell script
-    $ git clone https://github.com/aws-samples/aws-analytics-immersion-day.git
-    $ cd aws-analytics-immersion-day
+    $ git clone https://github.com/dealicious-inc/ad-data-pipeline.git
+    $ cd ad-data-pipeline
     $ python3 -m venv .env
     $ source .env/bin/activate
     (.env) $ pip install -r requirements.txt
