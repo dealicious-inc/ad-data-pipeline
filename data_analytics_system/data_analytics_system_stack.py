@@ -28,12 +28,14 @@ from aws_cdk.aws_lambda_event_sources import (
 
 random.seed(47)
 
-S3_BUCKET_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_LAMBDA_LAYER_LIB', 'lambda-layer-resources-use1')
+S3_BUCKET_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_LAMBDA_LAYER_LIB', 'deali-ad-data-lambda-layer-packages')
 
 class DataAnalyticsSystemStack(Stack):
 
   def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
     super().__init__(scope, construct_id, **kwargs)
+
+    deploy_env = self.node.try_get_context("deploy_env")
 
     vpc = aws_ec2.Vpc(self, "AdDataVPC", 
       max_azs=2,
@@ -63,11 +65,10 @@ class DataAnalyticsSystemStack(Stack):
     sg_es.add_ingress_rule(peer=sg_es, connection=aws_ec2.Port.all_tcp(), description='es-cluster-sg')
     sg_es.add_ingress_rule(peer=sg_use_es, connection=aws_ec2.Port.all_tcp(), description='use-es-cluster-sg')
 
-    s3_bucket = s3.Bucket(self, "s3bucket",
-      bucket_name="ad-data-{account}-beluga-ad-action".format(
-        account=kwargs['env'].account))
+    s3_bucket = s3.Bucket(self, "s3bucketBelugaAdAction",
+      bucket_name="ad-data-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env))
 
-    ad_action_kinesis_stream = kinesis.Stream(self, "AdDataKinesisStreams", stream_name='ad-data-beluga-ad-action')
+    ad_action_kinesis_stream = kinesis.Stream(self, "BelugaAdActionKinesisStreams", stream_name='ad-data-beluga-ad-action-{deploy_env}'.format(deploy_env=deploy_env))
 
     firehose_role_policy_doc = aws_iam.PolicyDocument()
     firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(**{
@@ -97,7 +98,7 @@ class DataAnalyticsSystemStack(Stack):
         "kinesis:GetRecords"]
     ))
 
-    firehose_log_group_name = "/aws/kinesisfirehose/ad-data-beluga-ad-action"
+    firehose_log_group_name = "/aws/kinesisfirehose/ad-data-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env)
     firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(
       effect=aws_iam.Effect.ALLOW,
       #XXX: The ARN will be formatted as follows:
@@ -118,7 +119,7 @@ class DataAnalyticsSystemStack(Stack):
     )
 
     ad_action_to_s3_delivery_stream = aws_kinesisfirehose.CfnDeliveryStream(self, "KinesisFirehoseToS3",
-      delivery_stream_name="ad-data-beluga-ad-action",
+      delivery_stream_name="ad-data-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env),
       delivery_stream_type="KinesisStreamAsSource",
       kinesis_stream_source_configuration={
         "kinesisStreamArn": ad_action_kinesis_stream.stream_arn,
@@ -143,7 +144,7 @@ class DataAnalyticsSystemStack(Stack):
     )
 
     #XXX: aws cdk elastsearch example - https://github.com/aws/aws-cdk/issues/2873
-    es_domain_name = 'ad-data-es'
+    es_domain_name = 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env)
     es_cfn_domain = aws_elasticsearch.CfnDomain(self, "ElasticSearch",
       elasticsearch_cluster_config={
         "dedicatedMasterCount": 3,
@@ -188,7 +189,7 @@ class DataAnalyticsSystemStack(Stack):
         "subnetIds": vpc.select_subnets(subnet_type=aws_ec2.SubnetType.PRIVATE_WITH_NAT).subnet_ids
       }
     )
-    cdk.Tags.of(es_cfn_domain).add('Name', 'ad-data-es')
+    cdk.Tags.of(es_cfn_domain).add('Name', 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env))
 
     #XXX: https://github.com/aws/aws-cdk/issues/1342
     s3_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id, S3_BUCKET_LAMBDA_LAYER_LIB)
@@ -205,18 +206,18 @@ class DataAnalyticsSystemStack(Stack):
     #XXX: Deploy lambda in VPC - https://github.com/aws/aws-cdk/issues/1342
     upsert_to_es_lambda_fn = _lambda.Function(self, "UpsertToES",
       runtime=_lambda.Runtime.PYTHON_3_7,
-      function_name="UpsertToES",
+      function_name="UpsertToES-{deploy_env}".format(deploy_env=deploy_env),
       handler="upsert_to_es.lambda_handler",
       description="Upsert records into elasticsearch",
       code=_lambda.Code.from_asset("./src/main/python/UpsertToES"),
       environment={
         'ES_HOST': es_cfn_domain.attr_domain_endpoint,
         #TODO: MUST set appropriate environment variables for your workloads.
-        'ES_INDEX': 'retail',
+        'ES_INDEX': 'beluga-ad-action',
         'ES_TYPE': 'trans',
-        'REQUIRED_FIELDS': 'Invoice,StockCode,Customer_ID',
+        'REQUIRED_FIELDS': 'meta,content',
         'REGION_NAME': kwargs['env'].region,
-        'DATE_TYPE_FIELDS': 'InvoiceDate'
+        'DATE_TYPE_FIELDS': 'datetime'
       },
       timeout=cdk.Duration.minutes(5),
       layers=[es_lib_layer],
@@ -234,7 +235,7 @@ class DataAnalyticsSystemStack(Stack):
 
     merge_small_files_lambda_fn = _lambda.Function(self, "MergeSmallFiles",
       runtime=_lambda.Runtime.PYTHON_3_7,
-      function_name="MergeSmallFiles",
+      function_name="MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
       handler="athena_ctas.lambda_handler",
       description="Merge small files in S3",
       code=_lambda.Code.from_asset("./src/main/python/MergeSmallFiles"),
