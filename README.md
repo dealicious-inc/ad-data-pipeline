@@ -107,5 +107,12 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     ```shell script
     (.env) $ cdk destroy --profile deali-sandbox -c deploy_env=dev
     ```
+    실행 후에도 S3 버킷과 CloudWatch LogGroup 은 남아 있으므로, 관련된 모든 리소스를 제거하려면 수동으로 지우거나 아래 예제처럼 같이 제거되도록 설정해주어야 합니다. 
+    ```python
+    bucket = s3.Bucket(self, "MyFirstBucket",
+    versioned=True,
+    removal_policy=cdk.RemovalPolicy.DESTROY,
+    auto_delete_objects=True)
+    ```
 
 \[[Top](#top)\]
