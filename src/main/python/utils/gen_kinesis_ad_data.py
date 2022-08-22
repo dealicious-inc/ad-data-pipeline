@@ -64,8 +64,8 @@ def main():
 
   parser.add_argument('--region-name', action='store', default='ap-northeast-2',
     help='aws region name (default: ap-northeast-2)')
-  parser.add_argument('-I', '--input-file', help='The input file path ex) ./resources/beluga_ad_action_example.log', 
-    default='./resources/beluga_ad_action_example.log')
+  parser.add_argument('-I', '--input-file', help='The input file path ex) ./example_data/beluga_ad_action.log', 
+    default='./example_data/beluga_ad_action.log')
   parser.add_argument('--out-format', default='json', choices=['csv', 'tsv', 'json'])
   parser.add_argument('--service-name', choices=['kinesis', 'console'], default='kinesis')
   parser.add_argument('--stream-name', help='The name of the stream to put the data record into.', default='ad-data-beluga-ad-action-dev')
