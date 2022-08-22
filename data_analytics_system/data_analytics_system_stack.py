@@ -37,14 +37,8 @@ class DataAnalyticsSystemStack(Stack):
 
     deploy_env = self.node.try_get_context("deploy_env")
 
-    vpc = aws_ec2.Vpc(self, "AdDataVPC", 
-      max_azs=2,
-      gateway_endpoints={
-        "S3": aws_ec2.GatewayVpcEndpointOptions(
-          service=aws_ec2.GatewayVpcEndpointAwsService.S3
-        )
-      }
-    )
+    vpc_name = {"dev" : "deali-sandbox-vpc", "qa" : "deali-sandbox-vpc", "prod" : "deali-ai-vpc"}.get(deploy_env, "unknown")
+    vpc = aws_ec2.Vpc.from_lookup(self, vpc_name, is_default=False)
 
     sg_use_es = aws_ec2.SecurityGroup(self, "ElasticSearchClientSG",
       vpc=vpc,
@@ -145,13 +139,18 @@ class DataAnalyticsSystemStack(Stack):
 
     #XXX: aws cdk elastsearch example - https://github.com/aws/aws-cdk/issues/2873
     es_domain_name = 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env)
+    subnet_ids = {
+      "dev" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"], 
+      "qa" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"], 
+      "prod" : ["subnet-0dfb095b182b3a664", "subnet-0c12e4fe4b6010d7c"]
+      }.get(deploy_env, "unknown")
     es_cfn_domain = aws_elasticsearch.CfnDomain(self, "ElasticSearch",
       elasticsearch_cluster_config={
         "dedicatedMasterCount": 3,
         "dedicatedMasterEnabled": True,
-        "dedicatedMasterType": "t2.medium.elasticsearch",
+        "dedicatedMasterType": "t3.small.elasticsearch",
         "instanceCount": 2,
-        "instanceType": "t2.medium.elasticsearch",
+        "instanceType": "t3.small.elasticsearch",
         "zoneAwarenessEnabled": True
       },
       ebs_options={
@@ -186,7 +185,7 @@ class DataAnalyticsSystemStack(Stack):
       },
       vpc_options={
         "securityGroupIds": [sg_es.security_group_id],
-        "subnetIds": vpc.select_subnets(subnet_type=aws_ec2.SubnetType.PRIVATE_WITH_NAT).subnet_ids
+        "subnetIds": subnet_ids
       }
     )
     cdk.Tags.of(es_cfn_domain).add('Name', 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env))
@@ -229,7 +228,7 @@ class DataAnalyticsSystemStack(Stack):
     upsert_to_es_lambda_fn.add_event_source(ad_action_kinesis_event_source)
 
     log_group = aws_logs.LogGroup(self, "UpsertToESLogGroup",
-      log_group_name="/aws/lambda/UpsertToES",
+      log_group_name="/aws/lambda/UpsertToES-{deploy_env}".format(deploy_env=deploy_env),
       retention=aws_logs.RetentionDays.THREE_DAYS)
     log_group.grant_write(upsert_to_es_lambda_fn)
 
