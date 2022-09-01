@@ -27,8 +27,8 @@
       (es-lib) $ pip install 'elasticsearch>=7.0.0,<7.11' requests requests-aws4auth -t python_modules # 필요한 패키지를 사용자가 지정한 패키지 디렉터리에 저장함
       (es-lib) $ mv python_modules python # 사용자가 지정한 패키지 디렉터리 이름을 python으로 변경함 (python 디렉터리에 패키지를 설치할 경우 에러가 나기 때문에 다른 이름의 디렉터리에 패키지를 설치 후, 디렉터리 이름을 변경함)
       (es-lib) $ zip -r es-lib.zip python/ # 필요한 패키지가 설치된 디렉터리를 압축함
-      (es-lib) $ aws s3 mb s3://my-bucket-for-lambda-layer-packages # 압축한 패키지를 업로드할 s3 bucket을 생성함
-      (es-lib) $ aws s3 cp es-lib.zip s3://my-bucket-for-lambda-layer-packages/var/ # 압축한 패키지를 s3에 업로드 한 후, lambda layer에 패키지를 등록할 때, s3 위치를 등록하면 됨
+      (es-lib) $ aws s3 mb s3://deali-ad-data-lambda-layer-packages --region ap-northeast-2 # 압축한 패키지를 업로드할 s3 bucket을 생성함
+      (es-lib) $ aws s3 cp es-lib.zip s3://deali-ad-data-lambda-layer-packages/var/ --region ap-northeast-2 # 압축한 패키지를 s3에 업로드 한 후, lambda layer에 패키지를 등록할 때, s3 위치를 등록하면 됨
       (es-lib) $ deactivate
       </pre>
     + [How to create a Lambda layer using a simulated Lambda environment with Docker](https://aws.amazon.com/premiumsupport/knowledge-center/lambda-layer-simulated-docker/)
@@ -40,9 +40,23 @@
       > EOF
       $ docker run -v "$PWD":/var/task "public.ecr.aws/sam/build-python3.7" /bin/sh -c "pip install -r requirements.txt -t python/lib/python3.7/site-packages/; exit"
       $ zip -r es-lib.zip python > /dev/null
-      $ aws s3 mb s3://my-bucket-for-lambda-layer-packages
-      $ aws s3 cp es-lib.zip s3://my-bucket-for-lambda-layer-packages/var/
+      $ aws s3 mb s3://deali-ad-data-lambda-layer-packages --region ap-northeast-2
+      $ aws s3 cp es-lib.zip s3://deali-ad-data-lambda-layer-packages/var/ --region ap-northeast-2
       ```
+
+4. bidPrice 필드를 decrypt 하기 위해 crypto 라이브러리를 위한 Lambda Layer 를 추가합니다. 방법은 위와 동일합니다. 
+    <pre>
+    [ec2-user@ip-172-31-6-207 ~] $ python3 -m venv crypto-lib # virtual environments을 생성함
+    [ec2-user@ip-172-31-6-207 ~] $ cd crypto-lib
+    [ec2-user@ip-172-31-6-207 ~] $ source bin/activate
+    (crypto-lib) $ mkdir -p python_modules # 필요한 패키지를 저장할 디렉터리 생성
+    (crypto-lib) $ pip install pycryptodome -t python_modules/ # 필요한 패키지를 사용자가 지정한 패키지 디렉터리에 저장함
+    (crypto-lib) $ mv python_modules python # 사용자가 지정한 패키지 디렉터리 이름을 python으로 변경함 (python 디렉터리에 패키지를 설치할 경우 에러가 나기 때문에 다른 이름의 디렉터리에 패키지를 설치 후, 디렉터리 이름을 변경함)
+    (crypto-lib) $ zip -r crypto-lib.zip python/ # 필요한 패키지가 설치된 디렉터리를 압축함
+    (crypto-lib) $ aws s3 mb s3://deali-ad-crypto-lambda-layer --region ap-northeast-2 # 압축한 패키지를 업로드할 s3 bucket을 생성함
+    (crypto-lib) $ aws s3 cp crypto-lib.zip s3://deali-ad-crypto-lambda-layer/var/ --region ap-northeast-2 # 압축한 패키지를 s3에 업로드 한 후, lambda layer에 패키지를 등록할 때, s3 위치를 등록하면 됨
+    (crypto-lib) $ deactivate
+    </pre>
 
 ### Useful Commands
 - ```cdk ls``` list all stacks in the app
@@ -74,7 +88,7 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     ```
 
 2. Lambda Layer에 등록할 Python 패키지를 생성해서 s3 bucket에 저장한다.
-에를 들어, elasticsearch 패키지를 Lambda Layer에 등록 할 수 있도록 `deali-ad-data-lambda-layer-packages`라는 이름의 s3 bucket을 생성 후, 아래와 같이 저장합니다.
+에를 들어, elasticsearch 패키지를 Lambda Layer에 등록 할 수 있도록 `deali-ad-data-lambda-layer-packages`라는 이름의 s3 bucket을 생성 후, 아래와 같이 저장된 것을 확인합니다.
 
     ```shell script
     $ aws s3 ls s3://deali-ad-data-lambda-layer-packages/var/ --profile deali-sandbox

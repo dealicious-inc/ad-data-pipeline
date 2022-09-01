@@ -29,6 +29,7 @@ from aws_cdk.aws_lambda_event_sources import (
 random.seed(47)
 
 S3_BUCKET_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_LAMBDA_LAYER_LIB', 'deali-ad-data-lambda-layer-packages')
+S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB', 'deali-ad-crypto-lambda-layer')
 
 class DataAnalyticsSystemStack(Stack):
 
@@ -112,6 +113,23 @@ class DataAnalyticsSystemStack(Stack):
       }
     )
 
+    s3_crypto_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id, S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB)
+    crypto_lib_layer = _lambda.LayerVersion(self, "CryptoLib",
+      layer_version_name="crypto-lib",
+      compatible_runtimes=[_lambda.Runtime.PYTHON_3_7],
+      code=_lambda.Code.from_bucket(s3_crypto_lib_bucket, "var/crypto-lib.zip")
+    )
+
+    etl_beluga_ad_action_lambda_fn = _lambda.Function(self, "etl-beluga-ad-action",
+      runtime=_lambda.Runtime.PYTHON_3_7,
+      function_name="etl-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env),
+      handler="etl_beluga_ad_action.lambda_handler",
+      description="ETL beluga-ad-action data",
+      code=_lambda.Code.from_asset("./src/main/python/ETL"),
+      layers=[crypto_lib_layer],
+      timeout=cdk.Duration.minutes(5)
+    )
+
     ad_action_to_s3_delivery_stream = aws_kinesisfirehose.CfnDeliveryStream(self, "KinesisFirehoseToS3",
       delivery_stream_name="ad-data-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env),
       delivery_stream_type="KinesisStreamAsSource",
@@ -133,7 +151,18 @@ class DataAnalyticsSystemStack(Stack):
         "compressionFormat": "UNCOMPRESSED", # [GZIP | HADOOP_SNAPPY | Snappy | UNCOMPRESSED | ZIP]
         "prefix": "json-data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/",
         "errorOutputPrefix": "error-json/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/!{firehose:error-output-type}",
-        "roleArn": firehose_role.role_arn
+        "roleArn": firehose_role.role_arn, 
+        "processingConfiguration": aws_kinesisfirehose.CfnDeliveryStream.ProcessingConfigurationProperty(
+          enabled=True,
+          processors=[aws_kinesisfirehose.CfnDeliveryStream.ProcessorProperty(
+              type="Lambda",
+
+              parameters=[aws_kinesisfirehose.CfnDeliveryStream.ProcessorParameterProperty(
+                  parameter_name="LambdaArn",
+                  parameter_value=etl_beluga_ad_action_lambda_fn.function_arn
+              )]
+          )]
+        )
       }
     )
 
