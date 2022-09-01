@@ -130,7 +130,7 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     ```
 
 ## Test
-Kinesis 에 데이터를 흘려 보내서 테스트하려면 다음과 같이 스크립트를 실행합니다. 
+Kinesis Streams 에 데이터를 흘려 보내서 테스트하려면 다음과 같이 스크립트를 실행합니다. 
     <pre>
     $ python3 ./src/main/python/ETL/etl_beluga_ad_action.py    # deali-sandbox 계정, dev 환경
     </pre>
