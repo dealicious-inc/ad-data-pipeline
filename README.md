@@ -58,6 +58,121 @@
     (crypto-lib) $ deactivate
     </pre>
 
+5. AWS Lambda Function을 이용해서 S3에 저장된 작은 파일들을 큰 파일로 합치기
+    
+    실시간으로 들어오는 데이터를 Kinesis Data Firehose를 이용해서 S3에 저장할 경우, 데이터 사이즈가 작은 파일들이 생성됩니다. Amazon Athena의 쿼리 성능 향상을 위해서 작은 파일들을 하나의 큰 파일로 합쳐주는 것이 좋습니다. 이러한 작업을 주기적으로 실행하기 위해서 Athena의 CTAS(Create Table As Select) 쿼리를 실행하는 AWS Lambda function 함수를 생성하고자 합니다.
+
+    이러한 작업을 위해 먼저 Athena 콘솔에서 데이터베이스 및 테이블 생성을 해주어야 합니다. 아래의 명령어들을 Athena 콘솔 - 쿼리 편집기에서 실행하면 됩니다. 
+
+    :warning: **{env} 자리에 환경 이름(dev, qa, prod 등)을 꼭 넣어줄 것!** 
+
+    먼저 데이터베이스를 생성합니다. 환경별로 데이터베이스 이름을 구분하여 만들어줍니다. 
+    ```sh
+    CREATE DATABASE IF NOT EXISTS beluga_ad_action_database_{env};
+    ```
+
+    변환하기 전 원본 데이터가 있는 S3 위치를 참조하는 테이블을 생성합니다. S3 위치 이름과 데이터베이스 이름을 환경에 맞게 조정해줍니다. 
+    ```sh
+    CREATE EXTERNAL TABLE IF NOT EXISTS `beluga_ad_action_database_{env}.beluga_ad_action_raw` (
+        `timestamp` string,
+        `datetime` string,
+        `userType` string,
+        `userid` string,
+        `storeId` string,
+        `platform` string,
+        `osVersion` string,
+        `appVersion` string,
+        `uuid` string,
+        `screenName` string,
+        `screenLabel` string,
+        `referrer` string,
+        `referrerLabel` string,
+        `event` string,
+        `groupIdx` string,
+        `campaignIdx` string,
+        `pageIdx` string,
+        `selectionId` string,
+        `selectionGroupId` string,
+        `chargingType` string,
+        `selectionTime` string,
+        `bidPrice` string,
+        `creativeIdx` string,
+        `productIdx` string,
+        `accountId` string,
+        `wsIdx` string,
+        `cdIdx` string,
+        `unitIdx` string,
+        `query` string,
+        `rsIdx` string,
+        `keywordIdx` string,
+        `keyword` string,
+        `exposureTime` string
+    )
+    PARTITIONED BY (
+        `year` int,
+        `month` int,
+        `day` int,
+        `hour` int
+    )
+    ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+    STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
+    LOCATION 's3://ad-data-beluga-ad-action-{env}/json-data'
+    ```
+
+    CTAS 쿼리 결과를 저장하는 테이블을 생성합니다. 
+    ```sh
+    CREATE EXTERNAL TABLE IF NOT EXISTS `beluga_ad_action_database_{env}.ctas_beluga_ad_action_parquet`(
+        `timestamp` string COMMENT '이벤트 발생 시간(GMT 기준) + 9 시간 계산',
+        `datetime` string COMMENT '이벤트 발생 시간',
+        `userType` string COMMENT '도/소매 여부 도매 : “W” 소매 : “R”',
+        `userid` string COMMENT '유저 ID',
+        `storeId` string COMMENT '',
+        `platform` string COMMENT '접속 기기 구분',
+        `osVersion` string COMMENT 'OS 버젼 (pc web은 빈 값으로 전송)',
+        `appVersion` string COMMENT '앱 버젼 (pc web은 빈 값으로 전송)',
+        `uuid` string COMMENT '(pc web은 빈 값으로 전송)',
+        `screenName` string COMMENT '이벤트가 발생된 화면의 이름',
+        `screenLabel` string COMMENT '이벤트가 발생된 화면의 코드 - 이제 사용하지 않기로 함, 이전에 있는 건 유지',
+        `referrer` string COMMENT '이벤트가 발생 직전의 화면 이름',
+        `referrerLabel` string COMMENT '이벤트가 발생 직전의 화면 코드',
+        `event` string COMMENT '동작 분류 코드',
+        `groupIdx` string COMMENT '광고 그룹 고유번호',
+        `campaignIdx` string COMMENT '광고 캠페인 고유번호',
+        `pageIdx` string COMMENT '지면 고유번호',
+        `selectionId` string COMMENT '낙찰 고유 번호',
+        `selectionGroupId` string COMMENT '낙찰그룹 ID (guid)',
+        `chargingType` string COMMENT '과금 방식 (CPM/CPC)',
+        `selectionTime` string COMMENT '낙찰 고유 번호',
+        `bidPrice` string COMMENT '입찰가',
+        `creativeIdx` string COMMENT '광고 소재 고유번호',
+        `productIdx` string COMMENT '광고 상품 고유번호',
+        `accountId` string COMMENT '광고주 계정키 (guid)',
+        `wsIdx` string COMMENT '도매 ID',
+        `cdIdx` string COMMENT '카테고리 고유번호',
+        `unitIdx` string COMMENT '광고 유닛 고유번호',
+        `query` string COMMENT '검색어',
+        `rsIdx` string COMMENT '소매 고유번호',
+        `keywordIdx` string COMMENT '키워드 고유 아이디',
+        `keyword` string COMMENT '키워드',
+        `exposureTime` string COMMENT '노출시간'
+    )
+    PARTITIONED BY (
+        `year` int,
+        `month` int,
+        `day` int,
+        `hour` int
+    )
+    ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+    STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat' OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
+    LOCATION 's3://ad-data-beluga-ad-action-{env}/parquet-data'
+    TBLPROPERTIES (
+        'has_encrypted_data' = 'false',
+        'parquet.compression' = 'SNAPPY'
+    );
+    ```
+
+athena_ctas.py 로 만든 lambda 함수에서 위의 테이블들을 이용하여 작은 파일들을 큰 파일로 변환, parquet 포맷으로 변환 등의 작업을 하게 됩니다. 이 lambad 함수는 CDK 를 통해 자동으로 배포됩니다. 
+
 ### Useful Commands
 - ```cdk ls``` list all stacks in the app
 - ```cdk synth``` emits the synthesized CloudFormation template

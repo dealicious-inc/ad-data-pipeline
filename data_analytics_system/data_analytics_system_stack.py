@@ -113,7 +113,7 @@ class DataAnalyticsSystemStack(Stack):
       }
     )
 
-    s3_crypto_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id, S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB)
+    s3_crypto_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id + 'crypto-lib', S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB)
     crypto_lib_layer = _lambda.LayerVersion(self, "CryptoLib",
       layer_version_name="crypto-lib",
       compatible_runtimes=[_lambda.Runtime.PYTHON_3_7],
@@ -166,6 +166,7 @@ class DataAnalyticsSystemStack(Stack):
       }
     )
 
+    # ElasticSearch
     #XXX: aws cdk elastsearch example - https://github.com/aws/aws-cdk/issues/2873
     es_domain_name = 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env)
     subnet_ids = {
@@ -220,7 +221,7 @@ class DataAnalyticsSystemStack(Stack):
     cdk.Tags.of(es_cfn_domain).add('Name', 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env))
 
     #XXX: https://github.com/aws/aws-cdk/issues/1342
-    s3_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id, S3_BUCKET_LAMBDA_LAYER_LIB)
+    s3_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id + 'es-lib', S3_BUCKET_LAMBDA_LAYER_LIB)
     es_lib_layer = _lambda.LayerVersion(self, "ESLib",
       layer_version_name="es-lib",
       compatible_runtimes=[_lambda.Runtime.PYTHON_3_7],
@@ -261,79 +262,78 @@ class DataAnalyticsSystemStack(Stack):
       retention=aws_logs.RetentionDays.THREE_DAYS)
     log_group.grant_write(upsert_to_es_lambda_fn)
 
-    # CTAS 관련 주석처리. 추후 기능 추가 예정.
-    #
-    # merge_small_files_lambda_fn = _lambda.Function(self, "MergeSmallFiles",
-    #   runtime=_lambda.Runtime.PYTHON_3_7,
-    #   function_name="MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
-    #   handler="athena_ctas.lambda_handler",
-    #   description="Merge small files in S3",
-    #   code=_lambda.Code.from_asset("./src/main/python/MergeSmallFiles"),
-    #   environment={
-    #     #TODO: MUST set appropriate environment variables for your workloads.
-    #     'OLD_DATABASE': 'mydatabase',
-    #     'OLD_TABLE_NAME': 'retail_trans_json',
-    #     'NEW_DATABASE': 'mydatabase',
-    #     'NEW_TABLE_NAME': 'ctas_retail_trans_parquet',
-    #     'WORK_GROUP': 'primary',
-    #     'OLD_TABLE_LOCATION_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'json-data')),
-    #     'OUTPUT_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'parquet-retail-trans')),
-    #     'STAGING_OUTPUT_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'tmp')),
-    #     'COLUMN_NAMES': 'invoice,stockcode,description,quantity,invoicedate,price,customer_id,country',
-    #   },
-    #   timeout=cdk.Duration.minutes(5)
-    # )
+    # CTAS    
+    merge_small_files_lambda_fn = _lambda.Function(self, "MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
+      runtime=_lambda.Runtime.PYTHON_3_7,
+      function_name="MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
+      handler="athena_ctas.lambda_handler",
+      description="Merge small files in S3",
+      code=_lambda.Code.from_asset("./src/main/python/MergeSmallFiles"),
+      environment={
+        #TODO: MUST set appropriate environment variables for your workloads.
+        'OLD_DATABASE': 'beluga_ad_action_database_{deploy_env}'.format(deploy_env=deploy_env),
+        'OLD_TABLE_NAME': 'beluga_ad_action_raw',
+        'NEW_DATABASE': 'beluga_ad_action_database_{deploy_env}'.format(deploy_env=deploy_env),
+        'NEW_TABLE_NAME': 'ctas_beluga_ad_action_parquet',
+        'WORK_GROUP': 'primary',
+        'OLD_TABLE_LOCATION_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'json-data')),
+        'OUTPUT_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'parquet-data')),
+        'STAGING_OUTPUT_PREFIX': 's3://{}'.format(os.path.join(s3_bucket.bucket_name, 'tmp')),
+        'COLUMN_NAMES': '*'
+      },
+      timeout=cdk.Duration.minutes(5)
+    )
 
-    # merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
-    #   effect=aws_iam.Effect.ALLOW,
-    #   resources=["*"],
-    #   actions=["athena:*"]))
-    # merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
-    #   effect=aws_iam.Effect.ALLOW,
-    #   resources=["*"],
-    #   actions=["s3:Get*",
-    #     "s3:List*",
-    #     "s3:AbortMultipartUpload",
-    #     "s3:PutObject",
-    #   ]))
-    # merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
-    #   effect=aws_iam.Effect.ALLOW,
-    #   resources=["*"],
-    #   actions=["glue:CreateDatabase",
-    #     "glue:DeleteDatabase",
-    #     "glue:GetDatabase",
-    #     "glue:GetDatabases",
-    #     "glue:UpdateDatabase",
-    #     "glue:CreateTable",
-    #     "glue:DeleteTable",
-    #     "glue:BatchDeleteTable",
-    #     "glue:UpdateTable",
-    #     "glue:GetTable",
-    #     "glue:GetTables",
-    #     "glue:BatchCreatePartition",
-    #     "glue:CreatePartition",
-    #     "glue:DeletePartition",
-    #     "glue:BatchDeletePartition",
-    #     "glue:UpdatePartition",
-    #     "glue:GetPartition",
-    #     "glue:GetPartitions",
-    #     "glue:BatchGetPartition"
-    #   ]))
-    # merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
-    #   effect=aws_iam.Effect.ALLOW,
-    #   resources=["*"],
-    #   actions=["lakeformation:GetDataAccess"]))
+    merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=["*"],
+      actions=["athena:*"]))
+    merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=["*"],
+      actions=["s3:Get*",
+        "s3:List*",
+        "s3:AbortMultipartUpload",
+        "s3:PutObject",
+      ]))
+    merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=["*"],
+      actions=["glue:CreateDatabase",
+        "glue:DeleteDatabase",
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:UpdateDatabase",
+        "glue:CreateTable",
+        "glue:DeleteTable",
+        "glue:BatchDeleteTable",
+        "glue:UpdateTable",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:BatchCreatePartition",
+        "glue:CreatePartition",
+        "glue:DeletePartition",
+        "glue:BatchDeletePartition",
+        "glue:UpdatePartition",
+        "glue:GetPartition",
+        "glue:GetPartitions",
+        "glue:BatchGetPartition"
+      ]))
+    merge_small_files_lambda_fn.add_to_role_policy(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=["*"],
+      actions=["lakeformation:GetDataAccess"]))
 
-    # lambda_fn_target = aws_events_targets.LambdaFunction(merge_small_files_lambda_fn)
-    # aws_events.Rule(self, "ScheduleRule",
-    #   schedule=aws_events.Schedule.cron(minute="5"),
-    #   targets=[lambda_fn_target]
-    # )
+    lambda_fn_target = aws_events_targets.LambdaFunction(merge_small_files_lambda_fn)
+    aws_events.Rule(self, "ScheduleRule",
+      schedule=aws_events.Schedule.cron(minute="5"),
+      targets=[lambda_fn_target]
+    )
 
-    # log_group = aws_logs.LogGroup(self, "MergeSmallFilesLogGroup",
-    #   log_group_name="/aws/lambda/MergeSmallFiles",
-    #   retention=aws_logs.RetentionDays.THREE_DAYS)
-    # log_group.grant_write(merge_small_files_lambda_fn)
+    log_group = aws_logs.LogGroup(self, "MergeSmallFilesLogGroup-{deploy_env}".format(deploy_env=deploy_env),
+      log_group_name="/aws/lambda/MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
+      retention=aws_logs.RetentionDays.THREE_DAYS)
+    log_group.grant_write(merge_small_files_lambda_fn)
 
     cdk.CfnOutput(self, 'ESDomainEndpoint', value=es_cfn_domain.attr_domain_endpoint, export_name='ESDomainEndpoint')
     cdk.CfnOutput(self, 'ESDashboardsURL', value=f"{es_cfn_domain.attr_domain_endpoint}/_dashboards/", export_name='ESDashboardsURL')

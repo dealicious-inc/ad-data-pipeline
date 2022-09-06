@@ -9,7 +9,7 @@ import aws_cdk as cdk
 from data_analytics_system.data_analytics_system_stack import DataAnalyticsSystemStack
 
 ACCOUNT = os.getenv('CDK_DEFAULT_ACCOUNT', '')
-REGION = os.getenv('CDK_DEFAULT_REGION', 'us-east-1')
+REGION = os.getenv('CDK_DEFAULT_REGION', 'ap-northeast-2')
 AWS_ENV = cdk.Environment(account=ACCOUNT, region=REGION)
 
 app = cdk.App()

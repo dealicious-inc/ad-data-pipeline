@@ -13,7 +13,7 @@ import boto3
 random.seed(47)
 
 DRY_RUN = (os.getenv('DRY_RUN', 'false').lower() == 'true')
-AWS_REGION = os.getenv('REGION_NAME', 'us-east-1')
+AWS_REGION = os.getenv('REGION_NAME', 'ap-northeast-2')
 
 OLD_DATABASE = os.getenv('OLD_DATABASE')
 OLD_TABLE_NAME = os.getenv('OLD_TABLE_NAME')
