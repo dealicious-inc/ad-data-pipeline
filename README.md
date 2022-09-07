@@ -235,8 +235,8 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
 4. 엘라스틱 서치 index를 생성합니다.
 
    ```shell
-   python3 src/main/python/utils/create_ad_action_index.py \
-   --es-host 'vpc-ad-action-temp3-z5s53kvlew7twsvy2wcje3midm.ap-northeast-2.es.amazonaws.com' \
+   python3 src/main/python/utils/create_ad_data_index.py \
+   --es-host 'vpc-ad-data-es-dev-6roglhwk4hzx2is4lo7zno5wme.ap-northeast-2.es.amazonaws.com' \
    --profile 'deali-sandbox'
    ```   
 
