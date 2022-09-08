@@ -58,6 +58,7 @@ class DataAnalyticsSystemStack(Stack):
     cdk.Tags.of(sg_es).add('Name', 'es-cluster-sg')
 
     sg_es.add_ingress_rule(peer=sg_es, connection=aws_ec2.Port.all_tcp(), description='es-cluster-sg')
+    sg_es.add_ingress_rule(peer=aws_ec2.Peer.ipv4("10.0.0.0/8"), connection=aws_ec2.Port.all_tcp(), description='connect-es-cluster-sg')
     sg_es.add_ingress_rule(peer=sg_use_es, connection=aws_ec2.Port.all_tcp(), description='use-es-cluster-sg')
 
     s3_bucket = s3.Bucket(self, "s3bucketBelugaAdAction",
@@ -189,7 +190,7 @@ class DataAnalyticsSystemStack(Stack):
         "volumeType": "gp2"
       },
       domain_name=es_domain_name,
-      elasticsearch_version="7.8",
+      elasticsearch_version="7.10",
       encryption_at_rest_options={
         "enabled": False
       },
