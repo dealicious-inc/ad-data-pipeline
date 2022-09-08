@@ -232,7 +232,15 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
     (.env) $ cdk deploy --profile deali-sandbox -c deploy_env=dev
     ```
 
-4. 배포한 애플리케이션을 삭제하려면, `cdk destroy` 명령어를 아래와 같이 실행 합니다.
+4. 엘라스틱 서치 index를 생성합니다.
+
+   ```shell
+   python3 src/main/python/utils/create_ad_data_index.py \
+   --es-host 'vpc-ad-data-es-dev-6roglhwk4hzx2is4lo7zno5wme.ap-northeast-2.es.amazonaws.com' \
+   --profile 'deali-sandbox'
+   ```   
+
+5. 배포한 애플리케이션을 삭제하려면, `cdk destroy` 명령어를 아래와 같이 실행 합니다.
     ```shell script
     (.env) $ cdk destroy --profile deali-sandbox -c deploy_env=dev
     ```
@@ -250,4 +258,4 @@ Kinesis Streams 에 데이터를 흘려 보내서 테스트하려면 다음과 �
     $ python3 ./src/main/python/ETL/etl_beluga_ad_action.py    # deali-sandbox 계정, dev 환경
     </pre>
 
-\[[Top](#top)\]
+[[Top](#top)]
