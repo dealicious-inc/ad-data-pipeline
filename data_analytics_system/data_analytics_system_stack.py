@@ -6,7 +6,6 @@ import os
 import random
 
 import aws_cdk as cdk
-
 from aws_cdk import (
   Stack,
   aws_ec2,
@@ -22,14 +21,11 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from aws_cdk.aws_lambda_event_sources import (
-  KinesisEventSource
-)
-
 random.seed(47)
 
 S3_BUCKET_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_LAMBDA_LAYER_LIB', 'deali-ad-data-lambda-layer-packages')
 S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB = os.getenv('S3_BUCKET_CRYPTO_LAMBDA_LAYER_LIB', 'deali-ad-crypto-lambda-layer')
+
 
 class DataAnalyticsSystemStack(Stack):
 
@@ -94,6 +90,20 @@ class DataAnalyticsSystemStack(Stack):
         "kinesis:GetRecords"]
     ))
 
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-kinesisfirehose-deliverystream-vpcconfiguration.html#aws-properties-kinesisfirehose-deliverystream-vpcconfiguration-properties
+    firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=["*"],
+      actions=["ec2:DescribeVpcs",
+               "ec2:DescribeVpcAttribute",
+               "ec2:DescribeSubnets",
+               "ec2:DescribeSecurityGroups",
+               "ec2:DescribeNetworkInterfaces",
+               "ec2:CreateNetworkInterface",
+               "ec2:CreateNetworkInterfacePermission",
+               "ec2:DeleteNetworkInterface"]
+    ))
+
     firehose_log_group_name = "/aws/kinesisfirehose/ad-data-beluga-ad-action-{deploy_env}".format(deploy_env=deploy_env)
     firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(
       effect=aws_iam.Effect.ALLOW,
@@ -152,7 +162,7 @@ class DataAnalyticsSystemStack(Stack):
         "compressionFormat": "UNCOMPRESSED", # [GZIP | HADOOP_SNAPPY | Snappy | UNCOMPRESSED | ZIP]
         "prefix": "json-data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/",
         "errorOutputPrefix": "error-json/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/!{firehose:error-output-type}",
-        "roleArn": firehose_role.role_arn, 
+        "roleArn": firehose_role.role_arn,
         "processingConfiguration": aws_kinesisfirehose.CfnDeliveryStream.ProcessingConfigurationProperty(
           enabled=True,
           processors=[aws_kinesisfirehose.CfnDeliveryStream.ProcessorProperty(
@@ -171,8 +181,8 @@ class DataAnalyticsSystemStack(Stack):
     #XXX: aws cdk elastsearch example - https://github.com/aws/aws-cdk/issues/2873
     es_domain_name = 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env)
     subnet_ids = {
-      "dev" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"], 
-      "qa" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"], 
+      "dev" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"],
+      "qa" : ["subnet-0b079ac6535fdc2ce", "subnet-0c49d8d7355a17c41"],
       "prod" : ["subnet-0dfb095b182b3a664", "subnet-0c12e4fe4b6010d7c"]
       }.get(deploy_env, "unknown")
     es_cfn_domain = aws_elasticsearch.CfnDomain(self, "ElasticSearch",
@@ -221,47 +231,91 @@ class DataAnalyticsSystemStack(Stack):
     )
     cdk.Tags.of(es_cfn_domain).add('Name', 'ad-data-es-{deploy_env}'.format(deploy_env=deploy_env))
 
-    #XXX: https://github.com/aws/aws-cdk/issues/1342
-    s3_lib_bucket = s3.Bucket.from_bucket_name(self, construct_id + 'es-lib', S3_BUCKET_LAMBDA_LAYER_LIB)
-    es_lib_layer = _lambda.LayerVersion(self, "ESLib",
-      layer_version_name="es-lib",
-      compatible_runtimes=[_lambda.Runtime.PYTHON_3_7],
-      code=_lambda.Code.from_bucket(s3_lib_bucket, "var/es-lib.zip")
-    )
+    # https://docs.aws.amazon.com/ko_kr/firehose/latest/dev/controlling-access.html#using-iam-es
+    firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      resources=[es_cfn_domain.attr_arn, f"{es_cfn_domain.attr_arn}/*"],
+      actions=[
+        "es:DescribeElasticsearchDomain",
+        "es:DescribeElasticsearchDomains",
+        "es:DescribeElasticsearchDomainConfig",
+        "es:ESHttpPost",
+        "es:ESHttpPut"
+      ]
+    ))
 
-    #XXX: add more than 2 security groups
-    # https://github.com/aws/aws-cdk/blob/ea10f0d141a48819ec0000cd7905feda993870a9/packages/%40aws-cdk/aws-lambda/lib/function.ts#L387
-    # https://github.com/aws/aws-cdk/issues/1555
-    # https://github.com/aws/aws-cdk/pull/5049
-    #XXX: Deploy lambda in VPC - https://github.com/aws/aws-cdk/issues/1342
-    upsert_to_es_lambda_fn = _lambda.Function(self, "UpsertToES",
-      runtime=_lambda.Runtime.PYTHON_3_7,
-      function_name="UpsertToES-{deploy_env}".format(deploy_env=deploy_env),
-      handler="upsert_to_es.lambda_handler",
-      description="Upsert records into elasticsearch",
-      code=_lambda.Code.from_asset("./src/main/python/UpsertToES"),
-      environment={
-        'ES_HOST': es_cfn_domain.attr_domain_endpoint,
-        #TODO: MUST set appropriate environment variables for your workloads.
-        'ES_INDEX': 'beluga-ad-action',
-        'ES_TYPE': 'trans',
-        'REQUIRED_FIELDS': 'meta,content',
-        'REGION_NAME': kwargs['env'].region,
-        'DATE_TYPE_FIELDS': 'datetime'
+    firehose_log_group_name = "/aws/kinesisfirehose/ad-data-beluga-ad-action-to-es-{deploy_env}".format(deploy_env=deploy_env)
+
+    log_group = aws_logs.LogGroup(self, "AdDataBelugaAdActionToEsLogGroup-{deploy_env}".format(deploy_env=deploy_env),
+                                  log_group_name=firehose_log_group_name,
+                                  retention=aws_logs.RetentionDays.THREE_DAYS)
+    log_group.add_stream("EsDelivery-{deploy_env}", log_stream_name="EsDelivery")
+
+    firehose_role_policy_doc.add_statements(aws_iam.PolicyStatement(
+      effect=aws_iam.Effect.ALLOW,
+      # XXX: The ARN will be formatted as follows:
+      # arn:{partition}:{service}:{region}:{account}:{resource}{sep}}{resource-name}
+      resources=[self.format_arn(service="logs", resource="log-group",
+                                 resource_name="{}:log-stream:*".format(firehose_log_group_name),
+                                 arn_format=cdk.ArnFormat.COLON_RESOURCE_NAME)],
+      actions=["logs:PutLogEvents"]
+    ))
+
+    firehose_cfn = aws_kinesisfirehose.CfnDeliveryStream
+    ad_action_to_es_delivery_stream = firehose_cfn(
+      self, "KinesisFirehoseToES",
+      delivery_stream_name="ad-data-beluga-ad-action-to-es-{deploy_env}".format(deploy_env=deploy_env),
+      delivery_stream_type="KinesisStreamAsSource",
+      kinesis_stream_source_configuration={
+        "kinesisStreamArn": ad_action_kinesis_stream.stream_arn,
+        "roleArn": firehose_role.role_arn
       },
-      timeout=cdk.Duration.minutes(5),
-      layers=[es_lib_layer],
-      security_groups=[sg_use_es],
-      vpc=vpc
+      amazonopensearchservice_destination_configuration=firehose_cfn.AmazonopensearchserviceDestinationConfigurationProperty(
+        domain_arn=es_cfn_domain.attr_arn,
+        index_name="ad_action",
+        buffering_hints=aws_kinesisfirehose.CfnDeliveryStream.AmazonopensearchserviceBufferingHintsProperty(
+          interval_in_seconds=60,
+          size_in_m_bs=1
+        ),
+        cloud_watch_logging_options= firehose_cfn.CloudWatchLoggingOptionsProperty(
+          enabled=True,
+          log_group_name=firehose_log_group_name,
+          log_stream_name="EsDelivery"
+        ),
+        role_arn= firehose_role.role_arn,
+        processing_configuration=firehose_cfn.ProcessingConfigurationProperty(
+          enabled=True,
+          processors=[firehose_cfn.ProcessorProperty(
+            type="Lambda",
+            parameters=[firehose_cfn.ProcessorParameterProperty(
+              parameter_name="LambdaArn",
+              parameter_value=etl_beluga_ad_action_lambda_fn.function_arn
+            )]
+          )]
+        ),
+        s3_backup_mode="FailedDocumentsOnly",
+        s3_configuration=firehose_cfn.S3DestinationConfigurationProperty(
+          bucket_arn=s3_bucket.bucket_arn,
+          buffering_hints=firehose_cfn.BufferingHintsProperty(
+            interval_in_seconds=60,
+            size_in_m_bs=1
+          ),
+          cloud_watch_logging_options=firehose_cfn.CloudWatchLoggingOptionsProperty(
+            enabled=True,
+            log_group_name=firehose_log_group_name,
+            log_stream_name="EsDelivery"
+          ),
+          compression_format="UNCOMPRESSED",
+          error_output_prefix= "error-json/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/!{firehose:error-output-type}",
+          role_arn=firehose_role.role_arn
+        ),
+        vpc_configuration= firehose_cfn.VpcConfigurationProperty(
+          role_arn=firehose_role.role_arn,
+          subnet_ids=es_cfn_domain.vpc_options.subnet_ids,
+          security_group_ids=es_cfn_domain.vpc_options.security_group_ids
+        )
+      ),
     )
-
-    ad_action_kinesis_event_source = KinesisEventSource(ad_action_kinesis_stream, batch_size=1000, starting_position=_lambda.StartingPosition.LATEST)
-    upsert_to_es_lambda_fn.add_event_source(ad_action_kinesis_event_source)
-
-    log_group = aws_logs.LogGroup(self, "UpsertToESLogGroup",
-      log_group_name="/aws/lambda/UpsertToES-{deploy_env}".format(deploy_env=deploy_env),
-      retention=aws_logs.RetentionDays.THREE_DAYS)
-    log_group.grant_write(upsert_to_es_lambda_fn)
 
     # CTAS    
     merge_small_files_lambda_fn = _lambda.Function(self, "MergeSmallFiles-{deploy_env}".format(deploy_env=deploy_env),
