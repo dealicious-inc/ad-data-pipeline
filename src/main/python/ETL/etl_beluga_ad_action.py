@@ -23,6 +23,7 @@ def lambda_handler(event, context):
   for record in event['records']:
       data = base64.b64decode(record['data']) 
       json_data = json.loads(data)
+      print('json data: {}'.format(json_data))
       json_data['content']['bidPrice'] = decrypt(json_data['content']['bidPrice'], dec_pw, dec_salt)
       new_data = flatten_json(json_data)
   
@@ -61,7 +62,7 @@ def flatten_json(y):
               flatten(a, str(i) + '_') 
               i += 1
       else: 
-          out[name[:-1]] = x 
+          out[name[:-1]] = x if x != '<null>' else None
 
   flatten(y) 
   return out
