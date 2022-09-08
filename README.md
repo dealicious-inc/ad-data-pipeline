@@ -239,6 +239,9 @@ aicd.sh 등의 스크립트를 실행하여 유저 정보를 `~/.aws/config`에 
    --es-host 'vpc-ad-data-es-dev-6roglhwk4hzx2is4lo7zno5wme.ap-northeast-2.es.amazonaws.com' \
    --profile 'deali-sandbox'
    ```   
+   > vpn 연결 필요
+
+   `GET /_cat/indices` 로 인덱스 생성 확인
 
 5. 배포한 애플리케이션을 삭제하려면, `cdk destroy` 명령어를 아래와 같이 실행 합니다.
     ```shell script
