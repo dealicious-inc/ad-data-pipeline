@@ -313,7 +313,8 @@ class DataAnalyticsSystemStack(Stack):
           role_arn=firehose_role.role_arn,
           subnet_ids=es_cfn_domain.vpc_options.subnet_ids,
           security_group_ids=es_cfn_domain.vpc_options.security_group_ids
-        )
+        ),
+        index_rotation_period="NoRotation"
       ),
     )
 
