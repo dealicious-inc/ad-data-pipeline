@@ -1,14 +1,21 @@
 # pip install aws-cdk
-aws-cdk-lib==2.10.0
+aws-cdk-lib==2.41.0
+constructs>=10.0.0,<11.0.0
 
 # pip install boto3
-boto3==1.14.13
+boto3~=1.25.3
 botocore==1.17.13
 
 # pip install elasticsearch
 elasticsearch>=7.0.0,<7.11
+opensearch-py==1.1.0
 requests==2.23.0
 requests-aws4auth==0.9
 
 # pip install crypto
 pycryptodome==3.15.0
+
+setuptools~=60.2.0
+
+awswrangler~=2.17.0
+pandas~=1.5.1
