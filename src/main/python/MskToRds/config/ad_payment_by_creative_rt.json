@@ -1,0 +1,23 @@
+{
+  "tableName": "ad_payment_by_creative_rt_test02",
+  "numericColumns": [
+    "vat_amount"
+  ],
+  "datetimeColumns": [
+    "window_start"
+  ],
+  "datetimeFormat": "%Y-%m-%d %H:00:00",
+  "groupBy": [
+    "ws_idx",
+    "creative_idx",
+    "product_idx",
+    "vat_amount",
+    "window_start"
+  ],
+  "columnToSum": "vat_amount",
+  "renameColumn": {
+    "window_start": "dt",
+    "vat_amount": "price"
+  },
+  "secretId": "beluga-data-mart/master"
+}
